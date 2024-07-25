@@ -22,6 +22,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from rbm import RBM
+from PreProcesament import PreProcessamento
 
 BATCH_SIZE = 64
 VISIBLE_UNITS = 43
@@ -45,3 +46,4 @@ params["device"] = "cuda"
 params["tree_method"] = "hist"
 
 X,Y = PreProcessamento(df)
+
