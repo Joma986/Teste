@@ -77,7 +77,7 @@ class RBM():
         self.weights -= self.weights * self.weight_decay  # L2 weight decay
 
         # Compute reconstruction error
-        error = torch.sum((input_data - negative_visible_probabilities)**2)
+        error = torch.sum((input_data - negative_visible_probabilities)**2) / batch_size
 
         return error
 
@@ -91,5 +91,3 @@ class RBM():
             random_probabilities = random_probabilities.cuda()
 
         return random_probabilities
-
-

@@ -54,7 +54,7 @@ BATCH_SIZE = 32
 VISIBLE_UNITS = 43
 HIDDEN_UNITS = 21
 CD_K = 1
-EPOCHS = 20
+EPOCHS = 10
 
 CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if CUDA else "cpu")
@@ -161,7 +161,7 @@ for i, batch in enumerate(novo_loader):
     novo_features[i*BATCH_SIZE:i*BATCH_SIZE+len(inputs)] = rbm.sample_hidden(inputs).cpu().numpy()
 
 # Classificar usando o modelo treinado
-predictions = clf.predict(novo_features)
+predictions = clf.predict_proba(novo_features) # TESTAR PREDICT PROBABILISTICO
 print('Predictions for the New Test Dataset:')
 print(predictions.sum())
 
