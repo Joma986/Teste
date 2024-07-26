@@ -111,31 +111,23 @@ X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
 y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
 y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
-X_smote_train_tensor = torch.tensor(X_smote_train.values, dtype=torch.float32)
-X_smote_test_tensor = torch.tensor(X_smote_test.values, dtype=torch.float32)
-y_smote_train_tensor = torch.tensor(y_smote_train.values, dtype=torch.float32)
-y_smote_test_tensor = torch.tensor(y_smote_test.values, dtype=torch.float32)
 
 train_dataset = CustomDataset(X_train_tensor, y_train_tensor)
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 test_dataset = CustomDataset(X_test_tensor, y_test_tensor)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-smote_train_dataset = CustomDataset(X_smote_train_tensor, y_smote_train_tensor)
-smote_train_loader = DataLoader(smote_train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-smote_test_dataset = CustomDataset(X_smote_test_tensor, y_smote_test_tensor)
-smote_test_loader = DataLoader(smote_test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 # Treinamento do RBM
 print('Training RBM...')
 rbm = RBM(VISIBLE_UNITS, HIDDEN_UNITS, CD_K, learning_rate=LEARNING_RATE, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
 
-train_rbm(smote_train_loader, rbm, EPOCHS, BATCH_SIZE, VISIBLE_UNITS, CUDA)
+train_rbm(train_loader, rbm, EPOCHS, BATCH_SIZE, VISIBLE_UNITS, CUDA)
 
 # Extração de características
 print('Extracting features...')
-train_features, train_labels = extract_features(smote_train_loader, smote_train_dataset, rbm, HIDDEN_UNITS, BATCH_SIZE, VISIBLE_UNITS, CUDA)
-test_features, test_labels = extract_features(smote_test_loader, smote_test_dataset, rbm, HIDDEN_UNITS, BATCH_SIZE, VISIBLE_UNITS, CUDA)
+train_features, train_labels = extract_features(train_loader, train_dataset, rbm, HIDDEN_UNITS, BATCH_SIZE, VISIBLE_UNITS, CUDA)
+test_features, test_labels = extract_features(test_loader, test_dataset, rbm, HIDDEN_UNITS, BATCH_SIZE, VISIBLE_UNITS, CUDA)
 
 # Classificação com RandomForest
 print('Classifying...')
@@ -157,7 +149,6 @@ roc_auc = roc_auc_score(test_labels, proba_predictions)
 print(f'Precision: {Precision:.4f}')
 print(f'Recall: {Recall:.4f}')
 print(f'ROC AUC: {roc_auc:.4f}')
-print(classification_report(test_labels, predictions))
 
 # Plots de avaliação
 fpr, tpr, _ = roc_curve(test_labels, proba_predictions)
@@ -197,10 +188,12 @@ for i, batch in enumerate(novo_loader):
     novo_features[i*BATCH_SIZE:i*BATCH_SIZE+len(inputs)] = rbm.sample_hidden(inputs).cpu().numpy()
 
 # Classificação usando o modelo treinado
-novo_predictions = clf.predict(novo_features)
+novo_predictions = clf.predict_proba(novo_features)[:,1]
+
+novo_predictions = (novo_predictions >= 0.17).astype('int64')
 
 print('Predictions for the New Test Dataset:')
-print(novo_predictions.sum())
+print('Fraudes: ',novo_predictions.sum())
 
 pre = pd.DataFrame(novo_predictions, columns=["Fraude"])
 submission = pd.concat([NumTransacoes, pre], axis=1)
