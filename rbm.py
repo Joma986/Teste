@@ -12,8 +12,8 @@ class RBM():
         self.weight_decay = weight_decay
         self.use_cuda = use_cuda
 
-        self.weights = torch.randn(num_visible, num_hidden) * 0.1
-        self.visible_bias = torch.ones(num_visible) * 0.5
+        self.weights = torch.randn(num_visible, num_hidden) * 0.01
+        self.visible_bias = torch.ones(num_visible) *0.05
         self.hidden_bias = torch.zeros(num_hidden)
 
         self.weights_momentum = torch.zeros(num_visible, num_hidden)
