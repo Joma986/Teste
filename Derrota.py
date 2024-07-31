@@ -8,7 +8,6 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from rbm import RBM
 from PreProcesament import PreProcessamento
-from sklearn.svm import SVC
 
 class CustomDataset(Dataset):
     def __init__(self, X, y):
@@ -36,26 +35,27 @@ class TestDataset(Dataset):
 def train_rbm(train_loader, rbm, epochs, batch_size, visible_units, cuda, Threshold=0):
     error = []
     i = 0
-    MelhoresPesos = rbm.weights.clone()
-    MelhoresViesesVisiveis = rbm.visible_bias.clone()
-    MelhoresViesesOcultos = rbm.hidden_bias.clone()
-    
     for epoch in range(epochs):
-        epoch_error = 0.0
+        epoch_error = 0.0 # Inicializa o erro como zero em cada iteração.
+        '''--------------------------------Incialização de parâmetros da RBM-----------------------------------'''
         for batch in train_loader:
-            inputs, _ = batch['input'], batch['target']
-            inputs = inputs.view(len(inputs), visible_units).float()
+            '''Cada Batch é um Dicionário com as chaves Input e Target, aqui o código 
+               extrai apenas o target dentre os dois, para realizar o treino.'''  
+            inputs, _ = batch['input'], batch['target'] # Cada Batch é um Dicionário com as chaves.
+            inputs = inputs.float() # Converte o Tensor para a dimensão desejada (Geralmente para imagem, precisa pra esse caso?).
 
             if cuda:
-                inputs = inputs.to(device)
+                inputs = inputs.to(device) # Tranfere os inputs para a GPU caso esteja disponivel
 
-            batch_error = rbm.contrastive_divergence(inputs)
-            epoch_error += batch_error
+            '''---------------------------------Calculo de Erro da RBM-----------------------------------------'''
+            batch_error = rbm.contrastive_divergence(inputs) # Calcula os erros do batch através do contrastive divergence
+            epoch_error += batch_error # Atualiza os erros da epoca.
         print(f'Epoch Error (epoch={epoch}): {epoch_error.mean():.4f}')
-        error.append(epoch_error.mean())
-        MenorErro = min(error)
+        error.append(epoch_error.mean()) # Atualiza o vetor de erros para o EarlyStopping.
+        MenorErro = min(error) # Erro minimo do processo
         
-        if (abs(error[epoch] - MenorErro) > 0.01) and (abs(error[epoch] - MenorErro) != 0) and (Threshold != 0):
+        '''----------------------------------Processo de EarlyStopping-----------------------------------------'''
+        if (abs(error[epoch] - MenorErro) > 2.0) and (abs(error[epoch] - MenorErro) != 0) and (Threshold != 0):
             i += 1
             print(f'EarlyStopping {i}/{Threshold}')
             if i == Threshold:
@@ -64,11 +64,16 @@ def train_rbm(train_loader, rbm, epochs, batch_size, visible_units, cuda, Thresh
                 rbm.hidden_bias = MelhoresViesesOcultos
                 print(f'EarlyStopping atuou. Pesos salvos da Época {epoch - i}') 
                 break
+            else:
+                if MenorErro == error[epoch]:
+                    MelhoresPesos = rbm.weights.clone()
+                    MelhoresViesesVisiveis = rbm.visible_bias.clone()
+                    MelhoresViesesOcultos = rbm.hidden_bias.clone()
+                    i = 0
         else:
-            MelhoresPesos = rbm.weights.clone()
-            MelhoresViesesVisiveis = rbm.visible_bias.clone()
-            MelhoresViesesOcultos = rbm.hidden_bias.clone()
-            i = 0
+            MelhoresPesos = rbm.weights
+            MelhoresViesesVisiveis = rbm.visible_bias
+            MelhoresViesesOcultos = rbm.hidden_bias 
 
 def extract_features(loader, rbm, hidden_units, visible_units, cuda):
     features = []
@@ -95,33 +100,35 @@ def extract_features(loader, rbm, hidden_units, visible_units, cuda):
 # Parâmetros
 BATCH_SIZE = 216
 VISIBLE_UNITS = 43
-HIDDEN_UNITS1 = 256
+HIDDEN_UNITS1 = 12
 HIDDEN_UNITS2 = 43
 CD_K = 1
 EPOCHS = 200
-LEARNING_RATE = 9e-3
+LEARNING_RATE = 9e-2
 MOMENTUM = 0.9
 
-# Inicialização do dispositivo
+print(f'Parametros \n Batch Size: {BATCH_SIZE} \n Visible Units: {VISIBLE_UNITS} \n Hidden Units: {HIDDEN_UNITS1} \n Contrastive Divergence: {CD_K} \n Epochs: {EPOCHS} \n Learning Rate: {LEARNING_RATE} \n Momentum: {MOMENTUM}')
+
+# Inicialização do dispositivo -> Escolher trabalhar com a GPU ao invês da CPU.
 CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if CUDA else "cpu")
 
-# Carregar e pré-processar dados
+# Carregar e pré-processar dados.
 df = pd.read_csv('treino.csv', sep="|")
 teste = pd.read_csv('teste.csv', sep="|")
 
 X, Y = PreProcessamento(df)
 
-# Divisão dos dados em treino e teste
+# Divisão dos dados em treino e teste.
 X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
 
-# Conversão para tensores
+# Conversão para tensores -> Pytorch
 X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
 X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
 y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
 y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
-# Criação dos DataLoader
+# Criação dos DataLoader -> Pytorch
 train_dataset = CustomDataset(X_train_tensor, y_train_tensor)
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 test_dataset = CustomDataset(X_test_tensor, y_test_tensor)
@@ -160,7 +167,7 @@ test_loader = DataLoader(test_dataset, batch_size = BATCH_SIZE, shuffle=False)
 
 # Classificação com RandomForest
 print('Classifying with Support Vector Classifer...')
-clf = SVC(probability=True)
+clf = RandomForestClassifier()
 print('Fitting...')
 clf.fit(train_features, train_labels)
 # predictions = clf.predict(test_features)
@@ -177,9 +184,9 @@ plt.plot(np.linspace(0,1,100),pre)
 plt.plot(np.linspace(0,1,100),rec)
 plt.show()
 # Avaliação
-proba_predictions = (proba_predictions >= 0.139).astype('int64')
-precision = precision_score(test_labels, proba_predictions)
-recall = recall_score(test_labels, proba_predictions)
+aux = (proba_predictions >= 0.139).astype('int64')
+precision = precision_score(test_labels, aux)
+recall = recall_score(test_labels, aux)
 print(f'Precision: {precision:.4f}')
 print(f'Recall: {recall:.4f}')
 
