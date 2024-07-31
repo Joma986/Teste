@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import precision_score, recall_score, roc_curve, precision_recall_curve
+from sklearn.metrics import precision_score, recall_score, roc_curve, precision_recall_curve, confusion_matrix
 import torch
 from torch.utils.data import Dataset, DataLoader
 from rbm import RBM
@@ -55,25 +55,21 @@ def train_rbm(train_loader, rbm, epochs, batch_size, visible_units, cuda, Thresh
         MenorErro = min(error) # Erro minimo do processo
         
         '''----------------------------------Processo de EarlyStopping-----------------------------------------'''
-        if (abs(error[epoch] - MenorErro) > 2.0) and (abs(error[epoch] - MenorErro) != 0) and (Threshold != 0):
+        if (abs(error[epoch] - MenorErro) > 0.1) and (abs(error[epoch] - MenorErro) != 0) and (Threshold != 0):
             i += 1
             print(f'EarlyStopping {i}/{Threshold}')
             if i == Threshold:
                 rbm.weights = MelhoresPesos
                 rbm.visible_bias = MelhoresViesesVisiveis
                 rbm.hidden_bias = MelhoresViesesOcultos
-                print(f'EarlyStopping atuou. Pesos salvos da Época {epoch - i}') 
+                print(f'EarlyStopping atuou. Pesos salvos da Época {melhorepoch}') 
                 break
-            else:
-                if MenorErro == error[epoch]:
-                    MelhoresPesos = rbm.weights.clone()
-                    MelhoresViesesVisiveis = rbm.visible_bias.clone()
-                    MelhoresViesesOcultos = rbm.hidden_bias.clone()
-                    i = 0
         else:
+            melhorepoch = epoch
             MelhoresPesos = rbm.weights
             MelhoresViesesVisiveis = rbm.visible_bias
             MelhoresViesesOcultos = rbm.hidden_bias 
+            i = 0
 
 def extract_features(loader, rbm, hidden_units, visible_units, cuda):
     features = []
@@ -81,27 +77,38 @@ def extract_features(loader, rbm, hidden_units, visible_units, cuda):
     
     for batch in loader:
         inputs = batch['input']
+        # Ajusta o formato dos inputs
         inputs = inputs.view(len(inputs), visible_units).float()
 
         if cuda:
-            inputs = inputs.to(device)
+            inputs = inputs.to('cuda')
 
-        hidden_features = rbm.sample_hidden(inputs).cpu().detach().numpy()
-        features.append(hidden_features)
+        # Amostra das unidades ocultas usando a RBM e converte para probabilidades
+        hidden_probabilities = rbm.sample_hidden(inputs).cpu().detach().numpy()
+
+        # Amostra binária com base nas probabilidades
+        binary_hidden_features = np.random.binomial(1, hidden_probabilities)
+        features.append(binary_hidden_features)
+
+        # Se houver rótulos, armazene-os
         if 'target' in batch:
             labels.append(batch['target'].numpy())
 
+    # Concatenando todas as características extraídas
     features = np.vstack(features)
+    
+    # Se houver rótulos, também os concatena
     if labels:
         labels = np.concatenate(labels)
         return features, labels
+
     return features
 
 # Parâmetros
-BATCH_SIZE = 216
+BATCH_SIZE = 1024
 VISIBLE_UNITS = 43
-HIDDEN_UNITS1 = 12
-HIDDEN_UNITS2 = 43
+HIDDEN_UNITS1 = 256
+HIDDEN_UNITS2 = 25
 CD_K = 1
 EPOCHS = 200
 LEARNING_RATE = 9e-2
@@ -157,7 +164,7 @@ test_loader = DataLoader(test_dataset, batch_size = BATCH_SIZE, shuffle=False)
 
 # # Treinamento da segunda RBM
 # print('Training second RBM...')
-# rbm2 = RBM(HIDDEN_UNITS1, HIDDEN_UNITS2, CD_K, learning_rate=9e-3, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
+# rbm2 = RBM(HIDDEN_UNITS1, HIDDEN_UNITS2, CD_K, learning_rate=5e-2, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
 # train_rbm(train_loader, rbm2, EPOCHS, BATCH_SIZE, HIDDEN_UNITS1, CUDA, Threshold = 10)
 
 # # Extração de características da segunda RBM
@@ -166,7 +173,7 @@ test_loader = DataLoader(test_dataset, batch_size = BATCH_SIZE, shuffle=False)
 # test_features, test_labels = extract_features(test_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
 
 # Classificação com RandomForest
-print('Classifying with Support Vector Classifer...')
+print('Classifying with Random Forest...')
 clf = RandomForestClassifier()
 print('Fitting...')
 clf.fit(train_features, train_labels)
@@ -185,8 +192,9 @@ plt.plot(np.linspace(0,1,100),rec)
 plt.show()
 # Avaliação
 aux = (proba_predictions >= 0.139).astype('int64')
-precision = precision_score(test_labels, aux)
-recall = recall_score(test_labels, aux)
+precision = precision_score(y_test, aux)
+recall = recall_score(y_test, aux)
+MatrziDeConfusão = confusion_matrix(y_test,aux)
 print(f'Precision: {precision:.4f}')
 print(f'Recall: {recall:.4f}')
 
@@ -212,21 +220,21 @@ plt.show()
 
 # Pre-processamento e extração de características para novo conjunto de dados
 print('Processing new test data...')
-# Teste, NumTransacoes = PreProcessamento(teste)
-# X_novo_tensor = torch.tensor(Teste.values, dtype=torch.float32)
-# novo_dataset = TestDataset(X_novo_tensor)
-# novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+Teste, NumTransacoes = PreProcessamento(teste)
+X_novo_tensor = torch.tensor(Teste.values, dtype=torch.float32)
+novo_dataset = TestDataset(X_novo_tensor)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-# novo_features = extract_features(novo_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+novo_features = extract_features(novo_loader, rbm1, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
 
-# # Classificação usando o modelo treinado
-# novo_predictions = clf.predict_proba(novo_features)[:, 1]
-# novo_predictions = (novo_predictions >= 0.5).astype('int64')
+# Classificação usando o modelo treinado
+novo_predictions = clf.predict_proba(novo_features)[:, 1]
+novo_predictions = (novo_predictions >= 0.139).astype('int64')
 
-# print('Predictions for the New Test Dataset:')
-# print('Fraudes:', novo_predictions.sum())
+print('Predictions for the New Test Dataset:')
+print('Fraudes:', novo_predictions.sum())
 
-# pre = pd.DataFrame(novo_predictions, columns=["Fraude"])
-# submission = pd.concat([NumTransacoes, pre], axis=1)
-# submission.to_csv('submission.csv', index=False)
+pre = pd.DataFrame(novo_predictions, columns=["Fraude"])
+submission = pd.concat([NumTransacoes, pre], axis=1)
+submission.to_csv('submission.csv', index=False)
 print("Fim")
