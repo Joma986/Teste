@@ -1,29 +1,12 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.neural_network import BernoulliRBM
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix, f1_score, make_scorer
-from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import TomekLinks
-from category_encoders import BinaryEncoder
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import PrecisionRecallDisplay
-import xgboost as xgb
-from xgboost import XGBClassifier, QuantileDMatrix
-from sklearn.metrics import roc_curve, roc_auc_score
-from catboost import CatBoostClassifier, Pool, EShapCalcType, EFeaturesSelectionAlgorithm
+from sklearn.metrics import precision_score, recall_score
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from PreProcesament import PreProcessamento
-import torch.nn.functional as F
-from torch.autograd import Variable
 from torch.utils.data import Dataset, DataLoader
 
 class RBM(nn.Module):
@@ -35,7 +18,6 @@ class RBM(nn.Module):
         self.k = k
 
     def sample_from_p(self, p):
-        # Certifique-se de que o tensor criado esteja no mesmo dispositivo que 'p'
         return F.relu(torch.sign(p - Variable(torch.rand(p.size()).to(p.device))))
 
     def v_to_h(self, v):
@@ -95,7 +77,7 @@ X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
 y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
 y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
-# Craindo so Dataloaders 
+# Craindo os Dataloaders 
 
 train_dataset = CustomDataset(X_train_tensor, y_train_tensor)
 test_dataset = CustomDataset(X_test_tensor, y_test_tensor)
@@ -109,7 +91,7 @@ rbm.to(device)
 
 print('\nTreinando RBM...')
 # Loop de treino
-epochs = 18
+epochs = 1
 for epoch in range(epochs):
     loss_ = []
     for batch in train_loader:
@@ -129,7 +111,7 @@ for epoch in range(epochs):
 
 print('\nExtraindo Features....')
 
-# Extraindo features para os dados de teste
+# Extraindo features para os dados de treino e teste
 with torch.no_grad():  # Desativa o autograd para economizar memória
     test_features = []
     train_features = []
@@ -144,4 +126,32 @@ with torch.no_grad():  # Desativa o autograd para economizar memória
 
 # Concatena todas as features extraídas
 test_features = np.concatenate(test_features, axis=0)
+train_features = np.concatenate(train_features, axis=0)
 print(f'Features Extraidas: {test_features}')
+
+print('Montando o Random Forest...')
+
+# Convertendo y_train_tensor e y_test_tensor de volta para numpy
+y_train = y_train_tensor.numpy()
+y_test = y_test_tensor.numpy()
+
+print('Treinando...')
+clf = RandomForestClassifier()
+clf.fit(train_features, y_train)
+
+print('Testando...')
+predict_proba = clf.predict_proba(test_features)[:,1]
+pre = []
+rec = []
+for threshold in np.linspace(0,1,100):
+    aux = (predict_proba >= threshold).astype('int64')
+    precision = precision_score(y_pred=aux, y_true=y_test)
+    recall = recall_score(y_pred=aux, y_true=y_test)
+    pre.append(precision)
+    rec.append(recall)
+plt.plot(np.linspace(0,1,100),pre, label='Precision')
+plt.plot(np.linspace(0,1,100),rec, label='Recall')
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.legend()
+plt.show()
