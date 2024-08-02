@@ -7,8 +7,8 @@ from sklearn.metrics import precision_score, recall_score, roc_curve, precision_
 import torch
 from torch.utils.data import Dataset, DataLoader
 from rbm import RBM
+from sklearn.linear_model import LogisticRegression
 from PreProcesament import PreProcessamento
-
 class CustomDataset(Dataset):
     def __init__(self, X, y):
         self.X = X
@@ -77,31 +77,20 @@ def extract_features(loader, rbm, hidden_units, visible_units, cuda):
     
     for batch in loader:
         inputs = batch['input']
-        # Ajusta o formato dos inputs
         inputs = inputs.view(len(inputs), visible_units).float()
 
         if cuda:
-            inputs = inputs.to('cuda')
+            inputs = inputs.to(device)
 
-        # Amostra das unidades ocultas usando a RBM e converte para probabilidades
-        hidden_probabilities = rbm.sample_hidden(inputs).cpu().detach().numpy()
-
-        # Amostra binária com base nas probabilidades
-        binary_hidden_features = np.random.binomial(1, hidden_probabilities)
-        features.append(binary_hidden_features)
-
-        # Se houver rótulos, armazene-os
+        hidden_features = rbm.sample_hidden(inputs).cpu().detach().numpy()
+        features.append(hidden_features)
         if 'target' in batch:
             labels.append(batch['target'].numpy())
 
-    # Concatenando todas as características extraídas
     features = np.vstack(features)
-    
-    # Se houver rótulos, também os concatena
     if labels:
         labels = np.concatenate(labels)
         return features, labels
-
     return features
 
 # Parâmetros
