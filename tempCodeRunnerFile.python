@@ -1,0 +1,14 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+df = pd.read_csv('treino.csv',sep="|")
+teste = pd.read_csv('teste.csv',sep="|")
+# Supondo que 'feature' seja o nome da coluna que você deseja analisar
+plt.hist(df[df.columns.to_list().remove('trans_num')], bins=30, alpha=0.5, label='Treinamento')
+# plt.hist(teste['amt'], bins=30, alpha=0.5, label='Teste')
+plt.legend(loc='upper right')
+plt.xlabel('Valor da Feature')
+plt.ylabel('Frequência')
+plt.title('Distribuição da Feature no Conjunto de Treinamento e Teste')
+plt.show()

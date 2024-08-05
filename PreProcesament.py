@@ -35,7 +35,7 @@ def PreProcessamento(df):
     numeric_dataset = enc.transform(df)
     
     try:
-        X = numeric_dataset.drop('is_fraud', axis=1)
+        X = numeric_dataset
         Y = numeric_dataset['is_fraud']
         return X, Y
     except KeyError:
