@@ -59,7 +59,7 @@ def train_rbm(train_loader, rbm, epochs, batch_size, visible_units, cuda, Thresh
         MenorErro = min(error) # Erro minimo do processo
         
         '''----------------------------------Processo de EarlyStopping-----------------------------------------'''
-        if (abs(error[epoch] - MenorErro) > 0.1) and (abs(error[epoch] - MenorErro) != 0) and (Threshold != 0):
+        if (abs(error[epoch] - MenorErro) > 0.001) and (abs(error[epoch] - MenorErro) != 0) and (Threshold != 0):
             i += 1
             print(f'EarlyStopping {i}/{Threshold}')
             if i == Threshold:
@@ -107,8 +107,8 @@ def extract_features(loader, rbm, hidden_units, visible_units, cuda):
 BATCH_SIZE = 1024
 VISIBLE_UNITS = 43
 HIDDEN_UNITS1 = 256
-HIDDEN_UNITS2 = 25
-HIDDEN_UNITS3 = 12
+HIDDEN_UNITS2 = 128
+HIDDEN_UNITS3 = 64
 CD_K = 1
 EPOCHS = 200
 LEARNING_RATE = 9e-2
@@ -126,47 +126,63 @@ teste = pd.read_csv('teste.csv', sep="|")
 X, Y = PreProcessamento(df)
 smt = SMOTE()
 X, Y = smt.fit_resample(X, Y)
+X, Y = smt.fit_resample(X, Y)
 X_fraudes = (X.loc[X['is_fraud'] == True]).drop('is_fraud',axis = 1)
+X_fraudes_train, X_fraudes_teste, y_fraudes_train, y_fraudes_test = train_test_split(X_fraudes, np.ones(len(X_fraudes)), test_size=0.2, random_state=42)
 X_Nao_fraudes = (X.loc[X['is_fraud'] == False]).drop('is_fraud',axis = 1)
+X_Nao_fraudes_train, X_Nao_fraudes_teste, y_Nao_fraudes_train, y_Nao_fraudes_test = train_test_split(X_Nao_fraudes, np.zeros(len(X_Nao_fraudes)), test_size=0.2, random_state=42)
+X_train_misto = pd.concat([X_fraudes_teste,X_Nao_fraudes_teste],axis = 0)
+# Converta os arrays para DataFrames (ou Series, dependendo do que você precisa)
+y_fraudes_test = pd.DataFrame(y_fraudes_test)
+y_Nao_fraudes_test = pd.DataFrame(y_Nao_fraudes_test)
+y_fraudes_test.rename(columns={'0': 'is_fraud'}, inplace=True)
+y_Nao_fraudes_test.rename(columns={'0': 'is_fraud'}, inplace=True)
 
-
-# X, Y = PreProcessamento(df)
+# Agora você pode concatená-los
+y_train_misto = pd.concat([y_fraudes_test, y_Nao_fraudes_test], axis=0)
 #Divisão dos dados em treino e teste.
+X_train_misto, X_test_misto, y_train_misto, y_test_misto = train_test_split(X_train_misto, y_train_misto, test_size=0.2, random_state=42)
+X_fraudes_tensor_train = torch.tensor(X_fraudes_train.values, dtype=torch.float32)
+X_Nao_fraudes_tensor_ = torch.tensor(X_Nao_fraudes_train.values, dtype=torch.float32)
+
+# train_pool = Pool(X_train_misto, y_train_misto, feature_names=X_train_misto.columns.to_list())
+# test_pool = Pool(X_test_misto, y_test_misto, feature_names=X_train_misto.columns.to_list())
 
 
-
-
-# train_pool = Pool(X_train, y_train, feature_names=X.columns.to_list())
-# test_pool = Pool(X_test, y_test, feature_names=X.columns.to_list())
 # model = CatBoostClassifier(iterations=1000, random_seed=0,verbose= 10)
 # summary = model.select_features(
 # train_pool,
 # eval_set=test_pool,
 # features_for_select='0-42',
-# num_features_to_select=25,
+# num_features_to_select=15,
 # steps=3,
 # algorithm=EFeaturesSelectionAlgorithm.RecursiveByShapValues,
 # shap_calc_type=EShapCalcType.Regular,
 # train_final_model=True,
 # plot=True
 # )
+# selected_features_indices = summary['selected_features'] 
 
-# # selected_features_indices = summary['selected_features'] 
-#  # Indices das features selecionadas
-# colunas = X_train.columns[selected_features_indices]
-# X_train = X_train[colunas]
-# X_test = X_test[colunas]
+# colunas = X_train_misto.columns[selected_features_indices]
+# X_fraudes_train = X_fraudes_train[colunas]
+# X_fraudes_teste = X_fraudes_teste[colunas]
+# X_Nao_fraudes_train = X_Nao_fraudes_train[colunas]
+# X_Nao_fraudes_teste = X_Nao_fraudes_teste[colunas]
 
-# Conversão para tensores -> Pytorch
-X_fraudes_tensor = torch.tensor(X_fraudes.values, dtype=torch.float32)
-# X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
-X_Nao_fraudes_tensor = torch.tensor(X_Nao_fraudes.values, dtype=torch.float32)
-# y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
+
+# X_fraudes_tensor_train = torch.tensor(X_fraudes_train.values, dtype=torch.float32)
+# X_Nao_fraudes_tensor_ = torch.tensor(X_Nao_fraudes_train.values, dtype=torch.float32)
+
+# X_train_misto= X_train_misto[colunas]
+# X_test_misto= X_test_misto[colunas]
+
+
+
 
 # Criação dos DataLoader -> Pytorch
-X_fraudes_dataset = TestDataset(X_fraudes_tensor)
+X_fraudes_dataset = TestDataset(X_fraudes_tensor_train)
 Fraudes_loader = DataLoader(X_fraudes_dataset, batch_size=BATCH_SIZE, shuffle=True)
-X_Nao_fraudes_dataset = TestDataset(X_Nao_fraudes_tensor)
+X_Nao_fraudes_dataset = TestDataset(X_Nao_fraudes_tensor_)
 Nao_fraudes_loader = DataLoader(X_Nao_fraudes_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 # Treinamento da primeira DBN para dados Não Fraudes
@@ -174,157 +190,179 @@ print('Training first DBN...')
 rbm1 = RBM(VISIBLE_UNITS, HIDDEN_UNITS1, CD_K, learning_rate=LEARNING_RATE, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
 rbm2 = RBM(HIDDEN_UNITS1, HIDDEN_UNITS2, CD_K, learning_rate=LEARNING_RATE, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
 rbm3 = RBM(HIDDEN_UNITS2, HIDDEN_UNITS3, CD_K, learning_rate=LEARNING_RATE, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
-train_rbm(Fraudes_loader, rbm1, EPOCHS, BATCH_SIZE, VISIBLE_UNITS, CUDA, Threshold = 10)
+train_rbm(Fraudes_loader, rbm1, EPOCHS, BATCH_SIZE, VISIBLE_UNITS, CUDA, Threshold = 5)
 
 # Extração de características da primeira RBM
 print('Extracting features from first RBM...')
-X_fraudes_array = extract_features(Fraudes_loader, rbm1, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
-X_fraudes_array = expit(X_fraudes_array)
+X_fraudes_array_train = extract_features(Fraudes_loader, rbm1, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+X_fraudes_array_train = expit(X_fraudes_array_train)
 
 # Ajuste dos tensores para a segunda RBM
-X_fraudes_tensor = torch.tensor(X_fraudes_array, dtype=torch.float32)
-Fraudes_dataset = TestDataset(X_fraudes_tensor)
+X_fraudes_tensor_train = torch.tensor(X_fraudes_array_train, dtype=torch.float32)
+Fraudes_dataset = TestDataset(X_fraudes_tensor_train)
 Fraudes_loader = DataLoader(Fraudes_dataset, batch_size = BATCH_SIZE, shuffle=True)
-train_rbm(Fraudes_loader, rbm2, EPOCHS, BATCH_SIZE, HIDDEN_UNITS1, CUDA, Threshold = 10)
+train_rbm(Fraudes_loader, rbm2, EPOCHS, BATCH_SIZE, HIDDEN_UNITS1, CUDA, Threshold = 5)
 
-X_fraudes_array = extract_features(Fraudes_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
-X_fraudes_array = expit(X_fraudes_array)
-
+X_fraudes_array_train = extract_features(Fraudes_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+X_fraudes_array_train = expit(X_fraudes_array_train)
 
 # Ajuste dos tensores para a segunda RBM
-X_fraudes_tensor = torch.tensor(X_fraudes_array, dtype=torch.float32)
-Fraudes_dataset = TestDataset(X_fraudes_tensor)
+X_fraudes_tensor_train = torch.tensor(X_fraudes_array_train, dtype=torch.float32)
+Fraudes_dataset = TestDataset(X_fraudes_tensor_train)
 Fraudes_loader = DataLoader(Fraudes_dataset, batch_size = BATCH_SIZE, shuffle=True)
-train_rbm(Fraudes_loader, rbm3, EPOCHS, BATCH_SIZE, HIDDEN_UNITS3, CUDA, Threshold = 10)
+train_rbm(Fraudes_loader, rbm3, EPOCHS, BATCH_SIZE, HIDDEN_UNITS3, CUDA, Threshold = 5)
+
+X_fraudes_array_train = extract_features(Fraudes_loader, rbm3, HIDDEN_UNITS3, HIDDEN_UNITS2, CUDA)
+X_fraudes_array_train = expit(X_fraudes_array_train)
+
+
 
 print('Training second DBN...')
 rbm4 = RBM(VISIBLE_UNITS, HIDDEN_UNITS1, CD_K, learning_rate=LEARNING_RATE, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
 rbm5 = RBM(HIDDEN_UNITS1, HIDDEN_UNITS2, CD_K, learning_rate=LEARNING_RATE, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
 rbm6 = RBM(HIDDEN_UNITS2, HIDDEN_UNITS3, CD_K, learning_rate=LEARNING_RATE, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
 
-train_rbm(Nao_fraudes_loader, rbm4, EPOCHS, BATCH_SIZE, VISIBLE_UNITS, CUDA, Threshold = 10)
+train_rbm(Nao_fraudes_loader, rbm4, EPOCHS, BATCH_SIZE, VISIBLE_UNITS, CUDA, Threshold = 5)
 print('Extracting features from first RBM...')
-Nao_fraudes_array = extract_features(Nao_fraudes_loader, rbm4, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
-Nao_fraudes_array = expit(Nao_fraudes_array)
+Nao_fraudes_array_train = extract_features(Nao_fraudes_loader, rbm4, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+Nao_fraudes_array_train = expit(Nao_fraudes_array_train)
 
 
 
 # Ajuste dos tensores para a segunda RBM
-X_Nao_fraudes_tensor = torch.tensor(Nao_fraudes_array, dtype=torch.float32)
-Nao_Fraudes_dataset = TestDataset(X_Nao_fraudes_tensor)
+X_Nao_fraudes_tensor_ = torch.tensor(Nao_fraudes_array_train, dtype=torch.float32)
+Nao_Fraudes_dataset = TestDataset(X_Nao_fraudes_tensor_)
 Nao_Fraudes_loader = DataLoader(Nao_Fraudes_dataset, batch_size = BATCH_SIZE, shuffle=True)
-train_rbm(Nao_Fraudes_loader, rbm5, EPOCHS, BATCH_SIZE, HIDDEN_UNITS1, CUDA, Threshold = 10)
+train_rbm(Nao_Fraudes_loader, rbm5, EPOCHS, BATCH_SIZE, HIDDEN_UNITS1, CUDA, Threshold = 5)
 
-Nao_fraudes_array = extract_features(Nao_Fraudes_loader, rbm5, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
-Nao_fraudes_array = expit(Nao_fraudes_array)
+Nao_fraudes_array_train = extract_features(Nao_Fraudes_loader, rbm5, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+Nao_fraudes_array_train = expit(Nao_fraudes_array_train)
 
 # Ajuste dos tensores para a segunda RBM
-X_Nao_fraudes_tensor = torch.tensor(Nao_fraudes_array, dtype=torch.float32)
-Nao_Fraudes_dataset = TestDataset(X_Nao_fraudes_tensor)
+X_Nao_fraudes_tensor_ = torch.tensor(Nao_fraudes_array_train, dtype=torch.float32)
+Nao_Fraudes_dataset = TestDataset(X_Nao_fraudes_tensor_)
 Nao_Fraudes_loader = DataLoader(Nao_Fraudes_dataset, batch_size = BATCH_SIZE, shuffle=True)
-train_rbm(Nao_Fraudes_loader, rbm6, EPOCHS, BATCH_SIZE, HIDDEN_UNITS2, CUDA, Threshold = 10)
+train_rbm(Nao_Fraudes_loader, rbm6, EPOCHS, BATCH_SIZE, HIDDEN_UNITS2, CUDA, Threshold = 5)
+
+Nao_fraudes_array_train = extract_features(Nao_Fraudes_loader, rbm6, HIDDEN_UNITS3, HIDDEN_UNITS2, CUDA)
+Nao_fraudes_array_train = expit(Nao_fraudes_array_train)
 
 
+print('Fitting Classifier...')
 
-# test_dataset = CustomDataset(X_test_tensor, y_test_tensor)
-# test_loader = DataLoader(test_dataset, batch_size = BATCH_SIZE, shuffle=False)
+X_novo_tensor = torch.tensor(X_train_misto.values, dtype=torch.float32)
+novo_dataset = TestDataset(X_novo_tensor)
+novo_loader_orig = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-# # Treinamento da segunda RBM
-# print('Training second RBM...')
-# rbm2 = RBM(HIDDEN_UNITS1, HIDDEN_UNITS2, CD_K, learning_rate=5e-2, momentum_coefficient=MOMENTUM, use_cuda=CUDA)
-# train_rbm(train_loader, rbm2, EPOCHS, BATCH_SIZE, HIDDEN_UNITS1, CUDA, Threshold = 10)
+novo_features_1 = extract_features(novo_loader_orig, rbm1, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+novo_features_1 = expit(novo_features_1)
+novo_dataset = TestDataset(novo_features_1)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_2 = extract_features(novo_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+novo_features_2 = expit(novo_features_2)
+novo_dataset = TestDataset(novo_features_2)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_3 = extract_features(novo_loader, rbm3, HIDDEN_UNITS3, HIDDEN_UNITS2, CUDA)
+novo_features_3 = expit(novo_features_3)
 
-# # Extração de características da segunda RBM
-# print('Extracting features from second RBM...')
-# train_features, train_labels = extract_features(train_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
-# test_features, test_labels = extract_features(test_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+novo_features_4 = extract_features(novo_loader_orig, rbm4, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+novo_features_4 = expit(novo_features_4)
+novo_dataset = TestDataset(novo_features_4)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_5 = extract_features(novo_loader, rbm5, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+novo_features_5 = expit(novo_features_5)
+novo_dataset = TestDataset(novo_features_5)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_6 = extract_features(novo_loader, rbm6, HIDDEN_UNITS3, HIDDEN_UNITS2, CUDA)
+novo_features_6 = expit(novo_features_6)
 
-# Classificação com RandomForest
-# print('Classifying with Random Forest...')
-# clf = RandomForestClassifier()
-# print('Fitting...')
-# clf.fit(train_features, train_labels)
-# # predictions = clf.predict(test_features)
-# proba_predictions = clf.predict_proba(test_features)[:, 1]
-# pre = []
-# rec = []
-# for Threshold in np.linspace(0,1,100):
-#     aux = (proba_predictions >= Threshold).astype('int64')
-#     precision = precision_score(test_labels, aux)
-#     recall = recall_score(test_labels, aux)
-#     pre.append(precision)
-#     rec.append(recall)
-# plt.plot(np.linspace(0,1,100),pre)
-# plt.plot(np.linspace(0,1,100),rec)
-# plt.show()
-# # Avaliação
-# aux = (proba_predictions >= 0.139).astype('int64')
-# precision = precision_score(y_test, aux)
-# recall = recall_score(y_test, aux)
-# MatrziDeConfusão = confusion_matrix(y_test,aux)
-# print(f'Precision: {precision:.4f}')
-# print(f'Recall: {recall:.4f}')
+concatenated_array = []
+for i in range (0,len(novo_features_6)):
+    concatenated_array.append(np.concatenate((novo_features_3[i], novo_features_6[i]), axis=0))
+clf = RandomForestClassifier()
 
-# # Plots de avaliação
-# fpr, tpr, _ = roc_curve(test_labels, proba_predictions)
-# precision, recall, _ = precision_recall_curve(test_labels, proba_predictions)
+clf.fit(concatenated_array, y_train_misto.values.ravel())
 
-# plt.figure()
-# plt.plot(fpr, tpr, label='ROC Curve')
-# plt.xlabel('False Positive Rate')
-# plt.ylabel('True Positive Rate')
-# plt.title('ROC Curve')
-# plt.legend()
-# plt.show()
 
-# plt.figure()
-# plt.plot(recall, precision, label='Precision-Recall Curve')
-# plt.xlabel('Recall')
-# plt.ylabel('Precision')
-# plt.title('Precision-Recall Curve')
-# plt.legend()
-# plt.show()
+X_novo_tensor = torch.tensor(X_test_misto.values, dtype=torch.float32)
+novo_dataset = TestDataset(X_novo_tensor)
+novo_loader_orig = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-# Pre-processamento e extração de características para novo conjunto de dados
-print('Processing new test data...')
+novo_features_1 = extract_features(novo_loader_orig, rbm1, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+novo_features_1 = expit(novo_features_1)
+novo_dataset = TestDataset(novo_features_1)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_2 = extract_features(novo_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+novo_features_2 = expit(novo_features_2)
+novo_dataset = TestDataset(novo_features_2)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_3 = extract_features(novo_loader, rbm3, HIDDEN_UNITS3, HIDDEN_UNITS2, CUDA)
+novo_features_3 = expit(novo_features_3)
+
+novo_features_4 = extract_features(novo_loader_orig, rbm4, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+novo_features_4 = expit(novo_features_4)
+novo_dataset = TestDataset(novo_features_4)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_5 = extract_features(novo_loader, rbm5, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+novo_features_5 = expit(novo_features_5)
+novo_dataset = TestDataset(novo_features_5)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_6 = extract_features(novo_loader, rbm6, HIDDEN_UNITS3, HIDDEN_UNITS2, CUDA)
+novo_features_6 = expit(novo_features_6)
+
+concatenated_array = []
+for i in range (0,len(novo_features_6)):
+    concatenated_array.append(np.concatenate((novo_features_3[i], novo_features_6[i]), axis=0))
+
+y_pred = clf.predict(concatenated_array)
+precision = precision_score(y_pred,y_test_misto)
+recall = recall_score(y_pred,y_test_misto)
+print(f'Precision: {precision}')
+print(f'Recall: {recall}')
+
 Teste, NumTransacoes = PreProcessamento(teste)
 X_novo_tensor = torch.tensor(Teste.values, dtype=torch.float32)
 novo_dataset = TestDataset(X_novo_tensor)
 novo_loader_orig = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 novo_features_1 = extract_features(novo_loader_orig, rbm1, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+novo_features_1 = expit(novo_features_1)
 novo_dataset = TestDataset(novo_features_1)
 novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 novo_features_2 = extract_features(novo_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+novo_features_2 = expit(novo_features_2)
 novo_dataset = TestDataset(novo_features_2)
 novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 novo_features_3 = extract_features(novo_loader, rbm3, HIDDEN_UNITS3, HIDDEN_UNITS2, CUDA)
-
-
+novo_features_3 = expit(novo_features_3)
 
 novo_features_4 = extract_features(novo_loader_orig, rbm4, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+novo_features_4 = expit(novo_features_4)
 novo_dataset = TestDataset(novo_features_4)
 novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 novo_features_5 = extract_features(novo_loader, rbm5, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+novo_features_5 = expit(novo_features_5)
 novo_dataset = TestDataset(novo_features_5)
 novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 novo_features_6 = extract_features(novo_loader, rbm6, HIDDEN_UNITS3, HIDDEN_UNITS2, CUDA)
+novo_features_6 = expit(novo_features_6)
+
 
 concatenated_array = []
 for i in range (0,len(novo_features_6)):
     concatenated_array.append(np.concatenate((novo_features_3[i], novo_features_6[i]), axis=0))
 
-# Classificação usando o modelo treinado
-eps = 0.5 
-min_samples = 5  
-dbz = DBSCAN(eps=eps, min_samples=min_samples)
-labels = dbz.fit_predict(concatenated_array)
-plt.hist(labels)
-plt.show()
-print('Predictions for the New Test Dataset:')
-print('Fraudes:', labels.sum())
+# # Classificação usando o modelo treinado
+# eps = 0.0005 
+# min_samples = 100 
+# dbz = DBSCAN(eps=eps, min_samples=min_samples)
+# labels = dbz.fit_predict(concatenated_array)
+# plt.hist(labels)
+# plt.show()
+# print('Predictions for the New Test Dataset:')
+# print('Fraudes:', labels.sum())
 
-pre = pd.DataFrame(labels, columns=["Fraude"])
-submission = pd.concat([NumTransacoes, pre], axis=1)
-submission.to_csv('submission.csv', index=False)
-print("Fim")
+# pre = pd.DataFrame(labels, columns=["Fraude"])
+# submission = pd.concat([NumTransacoes, pre], axis=1)
+# submission.to_csv('submission.csv', index=False)
+# print("Fim")
