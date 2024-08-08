@@ -295,6 +295,8 @@ Yh = dfnovoConcat['is_fraud']
 P = dftestenovoConcat.drop('is_fraud',axis = 1)
 Y = dftestenovoConcat['is_fraud']
 
+
+
 #X.drop(['merchant','job'],inplace = True, axis = 1)
 st = SMOTE()
 X,Yh = st.fit_resample(X, Yh)
@@ -441,6 +443,34 @@ print(f"Precision: {precision_score(Y_test,y_pred)}")
 print(f"Precision: {recall_score(Y_test,y_pred)}")
 
 
+X_novo_tensor = torch.tensor(P.values, dtype=torch.float32)
+novo_dataset = TestDataset(X_novo_tensor)
+novo_loader_orig = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
+novo_features_1 = extract_features(novo_loader_orig, rbm1, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+X_novo_tensor = torch.tensor(novo_features_1, dtype=torch.float32)
+novo_features_1 = F.relu(X_novo_tensor)
+novo_dataset = TestDataset(novo_features_1)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_2 = extract_features(novo_loader, rbm2, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+X_novo_tensor = torch.tensor(novo_features_2, dtype=torch.float32)
+novo_features_2 = F.relu(X_novo_tensor)
+
+
+novo_features_4 = extract_features(novo_loader_orig, rbm4, HIDDEN_UNITS1, VISIBLE_UNITS, CUDA)
+X_novo_tensor = torch.tensor(novo_features_4, dtype=torch.float32)
+novo_features_4 = F.relu(X_novo_tensor)
+novo_dataset = TestDataset(novo_features_4)
+novo_loader = DataLoader(novo_dataset, batch_size=BATCH_SIZE, shuffle=False)
+novo_features_5 = extract_features(novo_loader, rbm5, HIDDEN_UNITS2, HIDDEN_UNITS1, CUDA)
+X_novo_tensor = torch.tensor(novo_features_5, dtype=torch.float32)
+novo_features_5 = F.relu(X_novo_tensor)
+
+concatenated_array_test = []
+for i in range (0,len(novo_features_5)):
+    concatenated_array_test.append(np.concatenate((novo_features_2[i], novo_features_5[i]), axis=0))
+
+
+y_pred = clf.predict_proba(concatenated_array_test)[:,1]
 
 print('Fim')
