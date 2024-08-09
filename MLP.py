@@ -22,13 +22,15 @@ X_train, X_test, Y_train, Y_test = train_test_split(treino, Y, test_size=0.2, ra
 #     train_pool,
 #     eval_set=test_pool,
 #     features_for_select='0-255',
-#     num_features_to_select=235,
+#     num_features_to_select=50,
 #     steps=3,
 #     algorithm=EFeaturesSelectionAlgorithm.RecursiveByShapValues,
 #     shap_calc_type=EShapCalcType.Regular,
 #     train_final_model=True,
 #     plot=True
 # )
+
+# colunas = summary['selected_features_names']
 
 # Convertendo para tensores do TensorFlow
 X_train_tensor = tf.convert_to_tensor(X_train, dtype=tf.float32)
@@ -77,6 +79,6 @@ print(f'Test Recall: {test_recall:.2f}')
 
 
 predictions = model.predict(teste)
-pd.concat([TransNum,pd.DataFrame((predictions>0.5).astype('int64'), columns = ['is_fraud'])],axis = 1).to_csv('submission.csv',index = False)
+pd.concat([TransNum,pd.DataFrame(predictions, columns = ['is_fraud'])],axis = 1).to_csv('submission.csv',index = False)
 
 print("Fim")
