@@ -8,7 +8,7 @@ end
 
 function RBM(n_visible,n_hidden)
     W = randn(n_visible,n_hidden)
-    a = zeros(n_visual)
+    a = zeros(n_visible)
     b = zeros(n_hidden)
     return RBM1(W, a, b, n_visible,n_hidden)
 end
