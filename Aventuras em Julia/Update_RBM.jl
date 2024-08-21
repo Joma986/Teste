@@ -9,7 +9,7 @@ function update_rbm(
                     learning_rate::Float64
                     )
 
-    rbm.W += learning_rate.*(kron(h_data',v_data) - kron(h_model',v_model))
+    rbm.W += learning_rate.*(v_data * h_data' .- v_model * h_model')
     rbm.a += learning_rate.*(v_data - v_model)
     rbm.b += learning_rate.*(h_data - h_model)
 end
