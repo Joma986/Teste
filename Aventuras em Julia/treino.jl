@@ -1,7 +1,7 @@
 include("contrastive_divergence.jl")
 include("Update_RBM.jl")
 using Kronecker
-function train!(rbm::RBM1, epochs::Int64, X, step::Int,learning_rate = 0.07)
+function train!(rbm::RBM1, epochs::Int64, X, step::Int,learning_rate = 0.1)
     loss_epoch = []
     for i in 1:epochs
         loss = 0

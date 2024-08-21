@@ -2,10 +2,10 @@ using Kronecker
 include("rbm.jl")
 function update_rbm(
                     rbm::RBM1, 
-                    v_data::Vector{Int64}, 
-                    h_data::Vector{Int64}, 
-                    v_model::Vector{Int64}, 
-                    h_model::Vector{Int64}, 
+                    v_data::Vector{Float64}, 
+                    h_data::Vector{Float64}, 
+                    v_model::Vector{Float64}, 
+                    h_model::Vector{Float64}, 
                     learning_rate::Float64
                     )
 

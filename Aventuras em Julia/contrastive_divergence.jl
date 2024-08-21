@@ -10,14 +10,14 @@ function contrastive_divergence(rbm::RBM1,X,step::Int,learning_rate)
         # Fase Positiva
         v_data = x
         h_data = h_dado_v(rbm,v_data)
-        h_data = sample_bernoulli(h_data)
+        #h_data = sample_bernoulli(h_data)
         
         #Fase Negativa
         v_model = gibbs(rbm,v_data,step)
-        v_model = sample_bernoulli(v_model)
+        #v_model = sample_bernoulli(v_model)
         h_model = h_dado_v(rbm,v_model) 
-        h_model = sample_bernoulli(h_model)
-        update_rbm(rbm,v_data,Int.(h_data),Int.(v_model),Int.(h_model),learning_rate)
+        #h_model = sample_bernoulli(h_model)
+        update_rbm(rbm,float.(v_data),float.(h_data),float.(v_model),float.(h_model),learning_rate)
         
         v_prob = v_dado_h(rbm,h_model)
         v_reconstructed = sample_bernoulli(v_prob)
